@@ -9,15 +9,18 @@ from geometry_msgs.msg import PoseStamped
 from visualization_msgs.msg import Marker
 import numpy as np
 
-
-def quaternion_to_yaw(q):
-    siny_cosp = 2.0 * (q.w * q.z + q.x * q.y)
-    cosy_cosp = 1.0 - 2.0 * (q.y * q.y + q.z * q.z)
-    return math.atan2(siny_cosp, cosy_cosp)
-
+from tactical_recon.grid_utils import (
+    GRID_SIZE,
+    CELL_SIZE,
+    ORIGIN,
+    GOAL_CELL,
+    GOAL_WORLD,
+    world_to_grid,
+    grid_to_world,
+    clamp_grid,
+)
 
 SQRT2 = math.sqrt(2.0)
-GOAL_CELL = (135, 135)
 NEIGHBORS = [
     (1, 0, 1.0), (-1, 0, 1.0), (0, 1, 1.0), (0, -1, 1.0),
     (1, 1, SQRT2), (1, -1, SQRT2), (-1, 1, SQRT2), (-1, -1, SQRT2),
@@ -31,7 +34,7 @@ def heuristic(a, b):
 
 
 def astar(grid, start, goal, start_immunity_radius=3):
-    if start[0] < 0 or start[0] >= 150 or start[1] < 0 or start[1] >= 150:
+    if start[0] < 0 or start[0] >= GRID_SIZE or start[1] < 0 or start[1] >= GRID_SIZE:
         return None
 
     open_set = []
@@ -66,7 +69,7 @@ def astar(grid, start, goal, start_immunity_radius=3):
         for dx, dy, base_dist in NEIGHBORS:
             nx, ny = cx + dx, cy + dy
 
-            if nx < 0 or nx >= 150 or ny < 0 or ny >= 150:
+            if nx < 0 or nx >= GRID_SIZE or ny < 0 or ny >= GRID_SIZE:
                 continue
 
             if (nx, ny) in closed:
@@ -95,7 +98,7 @@ def astar(grid, start, goal, start_immunity_radius=3):
                 adj2_near = (abs(cx - start[0]) <= start_immunity_radius and
                              abs(cy + dy - start[1]) <= start_immunity_radius)
 
-                if (adj1_cost >= 95 and not adj1_near) and (adj2_cost >= 95 and not adj2_near):
+                if (adj1_cost >= 95 and not adj1_near) or (adj2_cost >= 95 and not adj2_near):
                     continue
 
             effective_cost = min(cell_cost, 90) if is_near_start else cell_cost
@@ -168,8 +171,8 @@ class GlobalPlannerNode(Node):
         marker.id = 0
         marker.type = Marker.CYLINDER
         marker.action = Marker.ADD
-        marker.pose.position.x = 12.0
-        marker.pose.position.y = 12.0
+        marker.pose.position.x = GOAL_WORLD[0]
+        marker.pose.position.y = GOAL_WORLD[1]
         marker.pose.position.z = 0.5
         marker.pose.orientation.w = 1.0
         marker.scale.x = 0.8
@@ -182,7 +185,7 @@ class GlobalPlannerNode(Node):
         self.marker_pub.publish(marker)
 
     def costmap_cb(self, msg):
-        self.costmap = np.array(msg.data, dtype=np.int8).reshape((150, 150))
+        self.costmap = np.array(msg.data, dtype=np.int8).reshape((GRID_SIZE, GRID_SIZE))
 
     def odom_cb(self, msg):
         self.ugv_x = msg.pose.pose.position.x
@@ -201,12 +204,8 @@ class GlobalPlannerNode(Node):
         if self.costmap is None or self.ugv_x is None:
             return
 
-        start_gx = int(math.floor((self.ugv_x + 15.0) / 0.20))
-        start_gy = int(math.floor((self.ugv_y + 15.0) / 0.20))
-
-        start_gx = max(0, min(149, start_gx))
-        start_gy = max(0, min(149, start_gy))
-
+        start_gx, start_gy = world_to_grid(self.ugv_x, self.ugv_y)
+        start_gx, start_gy = clamp_grid(start_gx, start_gy)
         start = (start_gx, start_gy)
 
         path_cells = astar(self.costmap, start, GOAL_CELL)
@@ -227,8 +226,9 @@ class GlobalPlannerNode(Node):
             pose = PoseStamped()
             pose.header.stamp = path_msg.header.stamp
             pose.header.frame_id = 'map'
-            pose.pose.position.x = -15.0 + (gx + 0.5) * 0.20
-            pose.pose.position.y = -15.0 + (gy + 0.5) * 0.20
+            wx, wy = grid_to_world(gx, gy)
+            pose.pose.position.x = wx
+            pose.pose.position.y = wy
             pose.pose.position.z = 0.0
             pose.pose.orientation.w = 1.0
             path_msg.poses.append(pose)
@@ -242,4 +242,3 @@ def main(args=None):
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()
-
