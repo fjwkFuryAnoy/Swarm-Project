@@ -1,6 +1,6 @@
 import os
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, ExecuteProcess
+from launch.actions import DeclareLaunchArgument, ExecuteProcess, TimerAction
 from launch.substitutions import LaunchConfiguration
 from launch.conditions import IfCondition
 from launch_ros.actions import Node
@@ -89,9 +89,54 @@ def generate_launch_description():
         package='tf2_ros',
         executable='static_transform_publisher',
         name='static_map_to_odom',
-        arguments=['0', '0', '0', '0', '0', '0', 'map', 'odom'],
+        arguments=['--x', '0', '--y', '0', '--z', '0',
+                   '--roll', '0', '--pitch', '0', '--yaw', '0',
+                   '--frame-id', 'map', '--child-frame-id', 'odom'],
         parameters=[{'use_sim_time': True}],
         output='screen')
+
+    uav_patrol_node = Node(
+        package='tactical_recon',
+        executable='uav_patrol_node',
+        name='uav_patrol_node',
+        parameters=[{'use_sim_time': True}],
+        output='screen')
+
+    terrain_mapper_node = Node(
+        package='tactical_recon',
+        executable='terrain_mapper_node',
+        name='terrain_mapper_node',
+        parameters=[{'use_sim_time': True}],
+        output='screen')
+
+    global_planner_node = Node(
+        package='tactical_recon',
+        executable='global_planner_node',
+        name='global_planner_node',
+        parameters=[{
+            'cooperative_mode': LaunchConfiguration('cooperative_mode'),
+            'use_sim_time': True
+        }],
+        output='screen')
+
+    ugv_controller_node = Node(
+        package='tactical_recon',
+        executable='ugv_controller_node',
+        name='ugv_controller_node',
+        parameters=[{
+            'cooperative_mode': LaunchConfiguration('cooperative_mode'),
+            'use_sim_time': True
+        }],
+        output='screen')
+
+    mission_nodes = TimerAction(
+        period=15.0,
+        actions=[
+            uav_patrol_node,
+            terrain_mapper_node,
+            global_planner_node,
+            ugv_controller_node
+        ])
 
     return LaunchDescription([
         cooperative_mode_arg,
@@ -105,4 +150,5 @@ def generate_launch_description():
         spawn_uav,
         spawn_ugv,
         static_map_to_odom,
+        mission_nodes
     ])
