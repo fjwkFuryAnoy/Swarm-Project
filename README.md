@@ -28,38 +28,38 @@ Despite following a route that is **9.4 meters longer**, the cooperative rover c
 ```mermaid
 flowchart TD
     subgraph Aerial Reconnaissance
-        UAV["scout_uav (Z = 12 m)"] -->|"sensor_msgs/Image (10 Hz)"| CAM["Downlink Camera"]
-        UAV -->|"nav_msgs/Odometry (20 Hz)"| UAV_ODOM["/uav/odom"]
-        PATROL["uav_patrol_node"] -->|"geometry_msgs/Twist (10 Hz)"| UAV_CMD["/uav/cmd_vel"]
-        PATROL -->|"std_msgs/Bool (transient_local)"| DONE["/uav/patrol_done"]
+        UAV["scout_uav (Z = 12m)"] --> CAM["Downlink Camera (640x480)"]
+        UAV --> UAV_ODOM["/uav/odom (20 Hz)"]
+        PATROL["uav_patrol_node"] --> UAV_CMD["/uav/cmd_vel (10 Hz)"]
+        PATROL --> DONE["/uav/patrol_done"]
     end
 
-    subgraph Terrain Mapping & Fusion
+    subgraph Terrain Mapping and Fusion
         CAM --> MAPPER["terrain_mapper_node"]
         UAV_ODOM --> MAPPER
         UGV_SCAN["/ugv/scan (10 Hz)"] --> MAPPER
-        MAPPER -->|"nav_msgs/OccupancyGrid (2 Hz)"| SHARED_MAP["/shared_costmap"]
-        MAPPER -->|"nav_msgs/OccupancyGrid (2 Hz)"| LIDAR_MAP["/lidar_costmap"]
-        MAPPER -->|"sensor_msgs/Image (5 Hz)"| DEBUG_IMG["/uav/debug_segmentation"]
+        MAPPER --> SHARED_MAP["/shared_costmap (2 Hz)"]
+        MAPPER --> LIDAR_MAP["/lidar_costmap (2 Hz)"]
+        MAPPER --> DEBUG_IMG["/uav/debug_segmentation (5 Hz)"]
     end
 
-    subgraph Ground Planning & Control
+    subgraph Ground Planning and Control
         DONE --> PLANNER["global_planner_node"]
-        SHARED_MAP -->|"Cooperative mode"| PLANNER
-        LIDAR_MAP -->|"Baseline mode"| PLANNER
+        SHARED_MAP --> PLANNER
+        LIDAR_MAP --> PLANNER
         UGV_ODOM["/ugv/odom (20 Hz)"] --> PLANNER
-        PLANNER -->|"nav_msgs/Path (2 Hz)"| PATH["/ugv/planned_path"]
-        PLANNER -->|"visualization_msgs/Marker"| GOAL_MARKER["/ugv/goal_marker"]
+        PLANNER --> PATH["/ugv/planned_path (2 Hz)"]
+        PLANNER --> GOAL_MARKER["/ugv/goal_marker"]
 
         PATH --> CTRL["ugv_controller_node"]
         SHARED_MAP --> CTRL
         LIDAR_MAP --> CTRL
         UGV_ODOM --> CTRL
-        CTRL -->|"geometry_msgs/Twist (20 Hz)"| UGV_CMD["/ugv/cmd_vel"]
+        CTRL --> UGV_CMD["/ugv/cmd_vel (20 Hz)"]
     end
 
     subgraph Simulation Arena
-        UGV_CMD --> UGV["recon_ugv Diff-Drive"]
+        UGV_CMD --> UGV["recon_ugv (Diff-Drive)"]
         UGV --> UGV_SCAN
         UGV --> UGV_ODOM
     end
@@ -73,9 +73,9 @@ flowchart TD
 - **Camera Geometry:** Focal length $f_x = f_y = 554.26$, principal point $(c_x, c_y) = (320, 240)$, altitude $Z = 12.0\text{ m}$.
 - **Ground Coordinates Calculation:**
   $$\begin{aligned}
-  dx_{\text{body}} &= -(v - c_y) \cdot \frac{Z}{f_y}, \quad dy_{\text{body}} = -(u - c_x) \cdot \frac{Z}{f_x} \\
-  X_w &= X_{\text{uav}} + dx_{\text{body}}\cos\theta - dy_{\text{body}}\sin\theta \\
-  Y_w &= Y_{\text{uav}} + dx_{\text{body}}\sin\theta + dy_{\text{body}}\cos\theta
+  dx_{\mathrm{body}} &= -(v - c_y) \cdot \frac{Z}{f_y}, \quad dy_{\mathrm{body}} = -(u - c_x) \cdot \frac{Z}{f_x} \\
+  X_w &= X_{\mathrm{uav}} + dx_{\mathrm{body}}\cos\theta - dy_{\mathrm{body}}\sin\theta \\
+  Y_w &= Y_{\mathrm{uav}} + dx_{\mathrm{body}}\sin\theta + dy_{\mathrm{body}}\cos\theta
   \end{aligned}$$
 - **HSV Semantic Classification:**
   - **Mines (Red, Cost 100):** $H \in [0, 10] \cup [170, 180]$, $S \in [100, 255]$, $V \in [80, 255]$ (dilated with $5\times 5$ kernel).
@@ -100,9 +100,9 @@ flowchart TD
 
 ### 4. Terrain-Aware Regulated Pure Pursuit Controller
 - **Terrain Speed Governor:**
-  $$v_{\text{terrain}} = \max\left(0.15, \frac{v_0}{1.0 + \frac{\max(c)}{10.0}}\right), \quad v_0 = 2.0\text{ m/s}$$
+  $$v_{\mathrm{terrain}} = \max\left(0.15, \frac{v_0}{1.0 + \frac{\max(c)}{10.0}}\right), \quad v_0 = 2.0\text{ m/s}$$
   Evaluates maximum cost $c$ up to $1.5\text{ m}$ ahead along the path to anticipate terrain transitions (decelerates before rough terrain or mud).
-- **Curvature Regulation:** $v_{\text{curv}} = v_{\text{terrain}} \cdot \max(0.25, \cos\alpha)$.
+- **Curvature Regulation:** $v_{\mathrm{curv}} = v_{\mathrm{terrain}} \cdot \max(0.25, \cos\alpha)$.
 - **Rotate-to-Heading:** If heading error $|\alpha| > 0.6\text{ rad}$, linear velocity is zeroed while the rover rotates in place to prevent lateral drift.
 - **Velocity Smoother:** Acceleration capped at $1.0\text{ m/s}^2$, deceleration capped at $2.0\text{ m/s}^2$ to avoid wheel slip in simulation.
 
