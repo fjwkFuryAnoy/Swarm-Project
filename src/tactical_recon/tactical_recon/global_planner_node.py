@@ -6,6 +6,7 @@ from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy
 from nav_msgs.msg import OccupancyGrid, Odometry, Path
 from std_msgs.msg import Bool
 from geometry_msgs.msg import PoseStamped
+from visualization_msgs.msg import Marker
 import numpy as np
 
 
@@ -150,7 +151,35 @@ class GlobalPlannerNode(Node):
 
         self.path_pub = self.create_publisher(Path, '/ugv/planned_path', 10)
 
+        marker_qos = QoSProfile(
+            depth=1,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            reliability=ReliabilityPolicy.RELIABLE)
+        self.marker_pub = self.create_publisher(Marker, '/ugv/goal_marker', marker_qos)
+        self.publish_goal_marker()
+
         self.create_timer(0.5, self.plan_timer)
+
+    def publish_goal_marker(self):
+        marker = Marker()
+        marker.header.stamp = self.get_clock().now().to_msg()
+        marker.header.frame_id = 'map'
+        marker.ns = 'goal'
+        marker.id = 0
+        marker.type = Marker.CYLINDER
+        marker.action = Marker.ADD
+        marker.pose.position.x = 12.0
+        marker.pose.position.y = 12.0
+        marker.pose.position.z = 0.5
+        marker.pose.orientation.w = 1.0
+        marker.scale.x = 0.8
+        marker.scale.y = 0.8
+        marker.scale.z = 1.0
+        marker.color.r = 0.0
+        marker.color.g = 1.0
+        marker.color.b = 0.2
+        marker.color.a = 0.8
+        self.marker_pub.publish(marker)
 
     def costmap_cb(self, msg):
         self.costmap = np.array(msg.data, dtype=np.int8).reshape((150, 150))
@@ -164,6 +193,8 @@ class GlobalPlannerNode(Node):
             self.patrol_done = True
 
     def plan_timer(self):
+        self.publish_goal_marker()
+
         if self.wait_for_patrol and not self.patrol_done:
             return
 

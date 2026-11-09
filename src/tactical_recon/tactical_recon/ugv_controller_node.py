@@ -90,7 +90,7 @@ class UgvControllerNode(Node):
                 now_sec = self.get_clock().now().nanoseconds / 1e9
                 elapsed = (now_sec - self.first_motion_time) if self.first_motion_time else 0.0
                 self.get_logger().info(
-                    f"GOAL REACHED: elapsed_s={elapsed:.2f} distance_m={self.total_distance:.2f} "
+                    f"MISSION REPORT: elapsed_s={elapsed:.2f} distance_m={self.total_distance:.2f} "
                     f"mine_time_s={self.mine_time:.2f} mud_time_s={self.mud_time:.2f} "
                     f"road_time_s={self.road_time:.2f}")
             return
