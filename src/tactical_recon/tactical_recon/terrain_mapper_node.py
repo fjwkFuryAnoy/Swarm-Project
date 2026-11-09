@@ -201,9 +201,13 @@ class TerrainMapperNode(Node):
 
         self.frame_count += 1
         if self.frame_count % 2 == 0:
-            self.publish_debug(cv_img, is_red, is_yellow, is_green, is_dirt, msg.header, uav_x, uav_y, uav_yaw)
+            self.publish_debug(
+                cv_img, is_red, is_yellow, is_green, is_dirt,
+                msg.header, uav_x, uav_y, uav_yaw)
 
-    def publish_debug(self, cv_img, is_red, is_yellow, is_green, is_dirt, header, uav_x, uav_y, uav_yaw):
+    def publish_debug(
+            self, cv_img, is_red, is_yellow, is_green, is_dirt,
+            header, uav_x, uav_y, uav_yaw):
         tint = np.zeros((60, 80, 3), dtype=np.uint8)
         tint[is_red] = [255, 0, 0]
         tint[is_yellow] = [255, 255, 0]
