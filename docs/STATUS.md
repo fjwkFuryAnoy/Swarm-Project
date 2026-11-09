@@ -12,7 +12,7 @@ Update this file at the end of every phase. It is the handoff between sessions.
 | 3 Planner | done | Weighted 8-connected A* with corner-cutting prevention, start-cell immunity (r=3), and D4 start gate. Check_path verified: Baseline (mode false) path length=35.63 m (34-37 m), poses on hazard=18 (> 0), road=16.4%; Cooperative (mode true) path length=45.94 m (46-49 m), poses on hazard=0, road=99.1% (>= 80%). Planned path display added to RViz. Zero comments. Committed "phase 3". |
 | 4 Controller and launch | done | Terrain-aware regulated pure pursuit (D9) and final launch contract (D10). End-to-end verified: Baseline elapsed=70.20s (65-75s), dist=34.69m, mine_time=14.90s; Cooperative elapsed=37.10s (35-45s), dist=43.99m, mine_time=0.00s. UGV stops at goal within 0.5m. Zero comments. Committed "phase 4". |
 | 5 Metrics and polish | done | Controller outputs D12 line `MISSION REPORT: elapsed_s=... distance_m=... mine_time_s=... mud_time_s=... road_time_s=...`. Verified: Cooperative elapsed=36.30s (dist=44.12m, mine=0.00s, road=33.95s); Baseline elapsed=70.60s (dist=34.73m, mine=15.60s, road=7.30s). RViz mission_view.rviz updated with Goal Marker (/ugv/goal_marker) at (12, 12, 0.5), path, distinct costmap palettes, and TF. Created run_baseline.sh and run_cooperative.sh demo scripts. Zero comments in all files. |
-| 6 Hardening and submission | not started | |
+| 6 Hardening and submission | done | Clean rebuild verified. 3 consistent runs recorded per mode: Cooperative avg 36.03s, 44.10m, 0.00s mine; Baseline avg 70.33s, 34.71m, 16.17s mine. Strict comment grep passed project-wide (0 comments/docstrings). All phase deliverables complete. |
 
 ## Decision log
 
@@ -49,4 +49,4 @@ Update this file at the end of every phase. It is the handoff between sessions.
 
 ## Last session notes
 
-Phase 5 complete on branch phase-5. D12 metrics confirmed for both modes (Baseline 70.60s with 15.60s mine exposure vs Cooperative 36.30s with 0.00s mine exposure). RViz goal marker added and verified. Demo scripts run_baseline.sh and run_cooperative.sh tested and verified. Zero comments policy maintained. Ready for Phase 6.
+All Phases 0 through 6 complete. Phase 6 committed on branch phase-6. Clean rebuild verified. 3 consistent runs recorded per mode: Cooperative mode finishes in 36.03s (+/-0.64s) with 0.00s mine exposure; Baseline mode finishes in 70.33s (+/-0.15s) with 16.17s mine exposure. Zero comments / docstrings policy strictly enforced and verified across all project files. Ready for final evaluation and video recording.
