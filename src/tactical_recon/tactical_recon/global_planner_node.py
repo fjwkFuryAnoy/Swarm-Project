@@ -11,8 +11,6 @@ import numpy as np
 
 from tactical_recon.grid_utils import (
     GRID_SIZE,
-    CELL_SIZE,
-    ORIGIN,
     GOAL_CELL,
     GOAL_WORLD,
     world_to_grid,
