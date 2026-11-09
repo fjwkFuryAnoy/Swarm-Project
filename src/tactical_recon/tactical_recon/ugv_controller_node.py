@@ -9,8 +9,6 @@ import numpy as np
 
 from tactical_recon.grid_utils import (
     GRID_SIZE,
-    CELL_SIZE,
-    ORIGIN,
     GOAL_WORLD,
     quaternion_to_yaw,
     world_to_grid,
@@ -250,8 +248,9 @@ class UgvControllerNode(Node):
                 self.first_motion_time = now_sec
 
             if self.last_pose is not None:
-                step_d = math.sqrt((self.x - self.last_pose[0])**2 + (self.y - self.last_pose[1])**2)
-                self.total_distance += step_d
+                step_dx = self.x - self.last_pose[0]
+                step_dy = self.y - self.last_pose[1]
+                self.total_distance += math.sqrt(step_dx * step_dx + step_dy * step_dy)
 
             if self.shared_costmap is not None:
                 ugv_gx, ugv_gy = world_to_grid(self.x, self.y)
