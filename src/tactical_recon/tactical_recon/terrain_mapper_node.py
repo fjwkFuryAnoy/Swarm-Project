@@ -1,3 +1,4 @@
+import math
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy
@@ -6,13 +7,40 @@ from sensor_msgs.msg import Image, LaserScan
 import numpy as np
 import cv2
 from cv_bridge import CvBridge
-from math import atan2
+
+from tactical_recon.grid_utils import (
+    GRID_SIZE,
+    CELL_SIZE,
+    ORIGIN,
+    quaternion_to_yaw,
+)
 
 
-def quaternion_to_yaw(q):
-    siny_cosp = 2.0 * (q.w * q.z + q.x * q.y)
-    cosy_cosp = 1.0 - 2.0 * (q.y * q.y + q.z * q.z)
-    return atan2(siny_cosp, cosy_cosp)
+def interpolate_pose(queue, t):
+    if not queue:
+        return None, None, None
+
+    if len(queue) == 1 or t <= queue[0][0]:
+        return queue[0][1], queue[0][2], queue[0][3]
+
+    if t >= queue[-1][0]:
+        return queue[-1][1], queue[-1][2], queue[-1][3]
+
+    for i in range(len(queue) - 1):
+        t1, x1, y1, yaw1 = queue[i]
+        t2, x2, y2, yaw2 = queue[i + 1]
+        if t1 <= t <= t2:
+            if t2 == t1:
+                return x1, y1, yaw1
+            alpha = (t - t1) / (t2 - t1)
+            x = x1 + alpha * (x2 - x1)
+            y = y1 + alpha * (y2 - y1)
+            dyaw = (yaw2 - yaw1 + math.pi) % (2.0 * math.pi) - math.pi
+            yaw = yaw1 + alpha * dyaw
+            yaw = (yaw + math.pi) % (2.0 * math.pi) - math.pi
+            return x, y, yaw
+
+    return queue[-1][1], queue[-1][2], queue[-1][3]
 
 
 class TerrainMapperNode(Node):
@@ -20,20 +48,17 @@ class TerrainMapperNode(Node):
     def __init__(self):
         super().__init__('terrain_mapper_node')
 
-        self.terrain = np.full((150, 150), -1, dtype=np.int8)
-        self.lidar_raw = np.zeros((150, 150), dtype=np.uint8)
+        self.terrain = np.full((GRID_SIZE, GRID_SIZE), -1, dtype=np.int8)
+        self.lidar_raw = np.zeros((GRID_SIZE, GRID_SIZE), dtype=np.uint8)
 
-        self.dirt_hits = np.zeros((150, 150), dtype=np.int32)
-        self.green_hits = np.zeros((150, 150), dtype=np.int32)
-        self.yellow_hits = np.zeros((150, 150), dtype=np.int32)
-        self.red_hits = np.zeros((150, 150), dtype=np.int32)
+        self.dirt_hits = np.zeros((GRID_SIZE, GRID_SIZE), dtype=np.int32)
+        self.green_hits = np.zeros((GRID_SIZE, GRID_SIZE), dtype=np.int32)
+        self.yellow_hits = np.zeros((GRID_SIZE, GRID_SIZE), dtype=np.int32)
+        self.red_hits = np.zeros((GRID_SIZE, GRID_SIZE), dtype=np.int32)
 
-        self.odom_queue = []
+        self.uav_odom_queue = []
+        self.ugv_odom_queue = []
         self.image_queue = []
-
-        self.ugv_x = None
-        self.ugv_y = None
-        self.ugv_yaw = None
 
         self.frame_count = 0
         self.bridge = CvBridge()
@@ -65,26 +90,32 @@ class TerrainMapperNode(Node):
         x = msg.pose.pose.position.x
         y = msg.pose.pose.position.y
         yaw = quaternion_to_yaw(msg.pose.pose.orientation)
-        self.odom_queue.append((stamp, x, y, yaw))
-        if len(self.odom_queue) > 200:
-            self.odom_queue.pop(0)
+        self.uav_odom_queue.append((stamp, x, y, yaw))
+        if len(self.uav_odom_queue) > 200:
+            self.uav_odom_queue.pop(0)
 
         while self.image_queue:
             img_msg = self.image_queue[0]
             img_time = img_msg.header.stamp.sec + img_msg.header.stamp.nanosec * 1e-9
-            if self.odom_queue[-1][0] >= img_time:
+            if self.uav_odom_queue[-1][0] >= img_time:
                 self.image_queue.pop(0)
                 self.process_image(img_msg, img_time)
             else:
                 break
 
     def ugv_odom_cb(self, msg):
-        self.ugv_x = msg.pose.pose.position.x
-        self.ugv_y = msg.pose.pose.position.y
-        self.ugv_yaw = quaternion_to_yaw(msg.pose.pose.orientation)
+        stamp = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
+        x = msg.pose.pose.position.x
+        y = msg.pose.pose.position.y
+        yaw = quaternion_to_yaw(msg.pose.pose.orientation)
+        self.ugv_odom_queue.append((stamp, x, y, yaw))
+        if len(self.ugv_odom_queue) > 200:
+            self.ugv_odom_queue.pop(0)
 
     def scan_cb(self, msg):
-        if self.ugv_x is None or self.ugv_yaw is None:
+        scan_time = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
+        ugv_x, ugv_y, ugv_yaw = interpolate_pose(self.ugv_odom_queue, scan_time)
+        if ugv_x is None or ugv_yaw is None:
             return
 
         ranges = np.array(msg.ranges)
@@ -96,44 +127,20 @@ class TerrainMapperNode(Node):
         valid_ranges = ranges[valid]
         valid_angles = angles[valid]
 
-        beam_angles = self.ugv_yaw + valid_angles
-        lx = self.ugv_x + valid_ranges * np.cos(beam_angles)
-        ly = self.ugv_y + valid_ranges * np.sin(beam_angles)
+        beam_angles = ugv_yaw + valid_angles
+        lx = ugv_x + valid_ranges * np.cos(beam_angles)
+        ly = ugv_y + valid_ranges * np.sin(beam_angles)
 
-        gx = np.floor((lx + 15.0) / 0.20).astype(int)
-        gy = np.floor((ly + 15.0) / 0.20).astype(int)
+        gx = np.floor((lx - ORIGIN) / CELL_SIZE).astype(int)
+        gy = np.floor((ly - ORIGIN) / CELL_SIZE).astype(int)
 
-        in_bounds = (gx >= 0) & (gx < 150) & (gy >= 0) & (gy < 150)
-        if np.any(in_bounds):
-            self.lidar_raw[gy[in_bounds], gx[in_bounds]] = 1
-
-    def get_interpolated_pose(self, t):
-        if not self.odom_queue:
-            return None, None, None
-
-        if len(self.odom_queue) == 1 or t <= self.odom_queue[0][0]:
-            return self.odom_queue[0][1], self.odom_queue[0][2], self.odom_queue[0][3]
-
-        if t >= self.odom_queue[-1][0]:
-            return self.odom_queue[-1][1], self.odom_queue[-1][2], self.odom_queue[-1][3]
-
-        for i in range(len(self.odom_queue) - 1):
-            t1, x1, y1, yaw1 = self.odom_queue[i]
-            t2, x2, y2, yaw2 = self.odom_queue[i + 1]
-            if t1 <= t <= t2:
-                if t2 == t1:
-                    return x1, y1, yaw1
-                alpha = (t - t1) / (t2 - t1)
-                x = x1 + alpha * (x2 - x1)
-                y = y1 + alpha * (y2 - y1)
-                yaw = yaw1 + alpha * (yaw2 - yaw1)
-                return x, y, yaw
-
-        return self.odom_queue[-1][1], self.odom_queue[-1][2], self.odom_queue[-1][3]
+        in_bounds_mask = (gx >= 0) & (gx < GRID_SIZE) & (gy >= 0) & (gy < GRID_SIZE)
+        if np.any(in_bounds_mask):
+            self.lidar_raw[gy[in_bounds_mask], gx[in_bounds_mask]] = 1
 
     def camera_cb(self, msg):
         img_time = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
-        if self.odom_queue and self.odom_queue[-1][0] >= img_time:
+        if self.uav_odom_queue and self.uav_odom_queue[-1][0] >= img_time:
             self.process_image(msg, img_time)
         else:
             self.image_queue.append(msg)
@@ -141,7 +148,7 @@ class TerrainMapperNode(Node):
                 self.image_queue.pop(0)
 
     def process_image(self, msg, img_time):
-        uav_x, uav_y, uav_yaw = self.get_interpolated_pose(img_time)
+        uav_x, uav_y, uav_yaw = interpolate_pose(self.uav_odom_queue, img_time)
         if uav_x is None:
             return
 
@@ -167,10 +174,10 @@ class TerrainMapperNode(Node):
         xw = uav_x + self.dx_body * cos_t - self.dy_body * sin_t
         yw = uav_y + self.dx_body * sin_t + self.dy_body * cos_t
 
-        gx = np.floor((xw + 15.0) / 0.20).astype(int)
-        gy = np.floor((yw + 15.0) / 0.20).astype(int)
+        gx = np.floor((xw - ORIGIN) / CELL_SIZE).astype(int)
+        gy = np.floor((yw - ORIGIN) / CELL_SIZE).astype(int)
 
-        valid = (gx >= 0) & (gx < 150) & (gy >= 0) & (gy < 150)
+        valid = (gx >= 0) & (gx < GRID_SIZE) & (gy >= 0) & (gy < GRID_SIZE)
 
         val_gx = gx[valid]
         val_gy = gy[valid]
@@ -194,9 +201,13 @@ class TerrainMapperNode(Node):
 
         self.frame_count += 1
         if self.frame_count % 2 == 0:
-            self.publish_debug(cv_img, is_red, is_yellow, is_green, is_dirt, msg.header, uav_x, uav_y, uav_yaw)
+            self.publish_debug(
+                cv_img, is_red, is_yellow, is_green, is_dirt,
+                msg.header, uav_x, uav_y, uav_yaw)
 
-    def publish_debug(self, cv_img, is_red, is_yellow, is_green, is_dirt, header, uav_x, uav_y, uav_yaw):
+    def publish_debug(
+            self, cv_img, is_red, is_yellow, is_green, is_dirt,
+            header, uav_x, uav_y, uav_yaw):
         tint = np.zeros((60, 80, 3), dtype=np.uint8)
         tint[is_red] = [255, 0, 0]
         tint[is_yellow] = [255, 255, 0]
@@ -229,17 +240,17 @@ class TerrainMapperNode(Node):
         kernel = np.ones((5, 5), dtype=np.uint8)
         lidar_inflated = cv2.dilate(self.lidar_raw, kernel)
 
-        lidar_grid = np.full((150, 150), 30, dtype=np.int8)
+        lidar_grid = np.full((GRID_SIZE, GRID_SIZE), 30, dtype=np.int8)
         lidar_grid[lidar_inflated > 0] = 100
 
         lidar_msg = OccupancyGrid()
         lidar_msg.header.stamp = now
         lidar_msg.header.frame_id = 'map'
-        lidar_msg.info.resolution = 0.20
-        lidar_msg.info.width = 150
-        lidar_msg.info.height = 150
-        lidar_msg.info.origin.position.x = -15.0
-        lidar_msg.info.origin.position.y = -15.0
+        lidar_msg.info.resolution = CELL_SIZE
+        lidar_msg.info.width = GRID_SIZE
+        lidar_msg.info.height = GRID_SIZE
+        lidar_msg.info.origin.position.x = ORIGIN
+        lidar_msg.info.origin.position.y = ORIGIN
         lidar_msg.info.origin.position.z = 0.0
         lidar_msg.info.origin.orientation.w = 1.0
         lidar_msg.data = lidar_grid.flatten().tolist()
@@ -254,11 +265,11 @@ class TerrainMapperNode(Node):
         shared_msg = OccupancyGrid()
         shared_msg.header.stamp = now
         shared_msg.header.frame_id = 'map'
-        shared_msg.info.resolution = 0.20
-        shared_msg.info.width = 150
-        shared_msg.info.height = 150
-        shared_msg.info.origin.position.x = -15.0
-        shared_msg.info.origin.position.y = -15.0
+        shared_msg.info.resolution = CELL_SIZE
+        shared_msg.info.width = GRID_SIZE
+        shared_msg.info.height = GRID_SIZE
+        shared_msg.info.origin.position.x = ORIGIN
+        shared_msg.info.origin.position.y = ORIGIN
         shared_msg.info.origin.position.z = 0.0
         shared_msg.info.origin.orientation.w = 1.0
         shared_msg.data = shared_grid.flatten().tolist()

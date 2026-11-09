@@ -15,10 +15,15 @@ def kill_all():
 
 def run_trial(cooperative, timeout_sec=140):
     kill_all()
+    ws_dir = os.environ.get(
+        'UAV_UGV_WS',
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    )
+    setup_path = os.path.join(ws_dir, 'install', 'setup.bash')
     cmd = [
         'bash', '-c',
         f'source /opt/ros/humble/setup.bash && '
-        f'source /home/fury/College/Robotics/uav_ugv_ws/install/setup.bash && '
+        f'source {setup_path} && '
         f'export GAZEBO_MODEL_DATABASE_URI="" && '
         f'ros2 launch tactical_recon sim_mission.launch.py '
         f'cooperative_mode:={"true" if cooperative else "false"} gui:=false'
@@ -100,4 +105,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

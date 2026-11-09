@@ -12,18 +12,26 @@ class UavPatrolNode(Node):
     def __init__(self):
         super().__init__('uav_patrol_node')
 
-        self.waypoints = [
-            (-10.0, -10.0),
-            (0.0, 0.0),
-            (-10.0, 8.0),
-            (8.0, 8.0),
-            (4.0, -4.0),
-            (10.0, 10.0),
+        default_waypoints = [
+            -10.0, -10.0,
+            0.0, 0.0,
+            -10.0, 8.0,
+            8.0, 8.0,
+            4.0, -4.0,
+            10.0, 10.0,
         ]
+        self.declare_parameter('waypoints', default_waypoints)
+        self.declare_parameter('max_speed', 2.0)
+        self.declare_parameter('tolerance', 0.3)
+        self.declare_parameter('kp', 1.0)
+
+        raw_wp = self.get_parameter('waypoints').value
+        self.waypoints = [(raw_wp[i], raw_wp[i + 1]) for i in range(0, len(raw_wp), 2)]
+        self.max_speed = self.get_parameter('max_speed').value
+        self.tolerance = self.get_parameter('tolerance').value
+        self.kp = self.get_parameter('kp').value
+
         self.wp_index = 0
-        self.tolerance = 0.3
-        self.max_speed = 2.0
-        self.kp = 1.0
         self.done = False
 
         self.x = None
@@ -53,9 +61,6 @@ class UavPatrolNode(Node):
 
         if self.done:
             self.cmd_pub.publish(cmd)
-            done_msg = Bool()
-            done_msg.data = True
-            self.done_pub.publish(done_msg)
             return
 
         wx, wy = self.waypoints[self.wp_index]

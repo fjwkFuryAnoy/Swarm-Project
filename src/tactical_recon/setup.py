@@ -20,7 +20,7 @@ setup(
     install_requires=['setuptools'],
     zip_safe=True,
     maintainer='fury',
-    maintainer_email='fury@todo.todo',
+    maintainer_email='fury@swarm-recon.local',
     description='Cooperative UAV-UGV reconnaissance and terrain-aware navigation',
     license='MIT',
     extras_require={
