@@ -3,9 +3,9 @@
 <package format="3">
   <name>tactical_recon</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
-  <maintainer email="fury@todo.todo">fury</maintainer>
-  <license>TODO: License declaration</license>
+  <description>Cooperative UAV-UGV reconnaissance and terrain-aware navigation</description>
+  <maintainer email="fury@swarm-recon.local">fury</maintainer>
+  <license>MIT</license>
 
   <depend>rclpy</depend>
   <depend>std_msgs</depend>
@@ -16,9 +16,7 @@
   <depend>cv_bridge</depend>
   <depend>visualization_msgs</depend>
 
-  <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
-  <test_depend>ament_pep257</test_depend>
   <test_depend>python3-pytest</test_depend>
 
   <export>
