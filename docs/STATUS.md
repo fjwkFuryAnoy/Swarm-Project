@@ -11,7 +11,7 @@ Update this file at the end of every phase. It is the handoff between sessions.
 | 2 Patrol and mapper | done | Patrol node follows 6 waypoints, latches /uav/patrol_done=True. Mapper publishes /shared_costmap (2 Hz) and /lidar_costmap (2 Hz) with transient_local QoS. Check_costmap verified: Mines=759 (650-800), Mud=400 (360-440), Road=2362 (2150-2550). LiDAR obst cells accumulate on UGV drive. /uav/debug_segmentation ~5 Hz with HUD. Mapper CPU ~0.2% (< 1 core). Zero comments. Committed "phase 2". |
 | 3 Planner | done | Weighted 8-connected A* with corner-cutting prevention, start-cell immunity (r=3), and D4 start gate. Check_path verified: Baseline (mode false) path length=35.63 m (34-37 m), poses on hazard=18 (> 0), road=16.4%; Cooperative (mode true) path length=45.94 m (46-49 m), poses on hazard=0, road=99.1% (>= 80%). Planned path display added to RViz. Zero comments. Committed "phase 3". |
 | 4 Controller and launch | done | Terrain-aware regulated pure pursuit (D9) and final launch contract (D10). End-to-end verified: Baseline elapsed=70.20s (65-75s), dist=34.69m, mine_time=14.90s; Cooperative elapsed=37.10s (35-45s), dist=43.99m, mine_time=0.00s. UGV stops at goal within 0.5m. Zero comments. Committed "phase 4". |
-| 5 Metrics and polish | not started | |
+| 5 Metrics and polish | done | Controller outputs D12 line `MISSION REPORT: elapsed_s=... distance_m=... mine_time_s=... mud_time_s=... road_time_s=...`. Verified: Cooperative elapsed=36.30s (dist=44.12m, mine=0.00s, road=33.95s); Baseline elapsed=70.60s (dist=34.73m, mine=15.60s, road=7.30s). RViz mission_view.rviz updated with Goal Marker (/ugv/goal_marker) at (12, 12, 0.5), path, distinct costmap palettes, and TF. Created run_baseline.sh and run_cooperative.sh demo scripts. Zero comments in all files. |
 | 6 Hardening and submission | not started | |
 
 ## Decision log
@@ -49,4 +49,4 @@ Update this file at the end of every phase. It is the handoff between sessions.
 
 ## Last session notes
 
-Phase 4 complete on branch phase-4. Full end-to-end mission verified for both modes (Baseline 70.20s vs Cooperative 37.10s). Zero comments policy maintained. Ready for Phase 5.
+Phase 5 complete on branch phase-5. D12 metrics confirmed for both modes (Baseline 70.60s with 15.60s mine exposure vs Cooperative 36.30s with 0.00s mine exposure). RViz goal marker added and verified. Demo scripts run_baseline.sh and run_cooperative.sh tested and verified. Zero comments policy maintained. Ready for Phase 6.
